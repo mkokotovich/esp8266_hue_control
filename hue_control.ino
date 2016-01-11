@@ -41,11 +41,13 @@ void setHue(const String &command)
 void turnOnLights()
 {
   setHue("{\"on\":true, \"bri\":255}");
+  digitalWrite(BUILTIN_LED, HIGH);
 }
 
 void turnOffLights()
 {
   setHue("{\"on\":false");
+  digitalWrite(BUILTIN_LED, LOW);
 }
 
 void dimLights(float percentage)
@@ -61,7 +63,9 @@ void setup() {
   delay(10);
 
   //Set switch pin to input
-  pinMode(switchPin, INPUT);
+  pinMode(switchPin, INPUT_PULLUP);
+  //Debug LED for confirmation
+  pinMode(BUILTIN_LED, OUTPUT);
   
   // We start by connecting to a WiFi network
 
@@ -95,7 +99,8 @@ void loop() {
   currSwitchState = digitalRead(switchPin);
   if (currSwitchState != prevSwitchState)
   {
-    if (currSwitchState == HIGH)
+    // LOW and HIGH are backwards due to the PULLUP resister
+    if (currSwitchState == LOW)
     {
       turnOnLights();
     }

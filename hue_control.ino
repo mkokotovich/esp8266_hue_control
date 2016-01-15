@@ -1,13 +1,18 @@
 #include <ESP8266WiFi.h>
-#include <ESP8266HTTPClient.h>
+#include "private.h"
 
-const char* ssid     = "your-ssid";
-const char* password = "your-password";
+const char* ssid     = private_ssid;
+const char* password = private_password;
 
-const char hueHubIP[] = "192.168.68.100";  // Hue hub IP
-const char hueUsername[] = "newdeveloper";  // Hue username
-const int hueHubPort = 80;
+const char bridge_ip[] = "192.168.86.100";  // Hue bridge IP
+const String hueUsername = private_hueUsername;
+const int bridge_port = 80;
 
+const String hue_on="{\"on\":true, \"bri\":255}";
+const String hue_off="{\"on\":false}";
+
+const int LIGHT_LED_PIN = D0;
+const int WORKING_LED_PIN = D4;
 const int switchPin = D5;
 int prevSwitchState = 0;
 int currSwitchState = 0;
@@ -18,42 +23,64 @@ int currSwitchState = 0;
  */
 void setHue(const String &command)
 {
-  HTTPClient http;
-  String url = "/api/" + String(hueUsername) + "/groups/0/action";
-  http.begin(hueHubIP, hueHubPort, url.c_str());
-  
-  Serial.print("[HTTP] GET...\n");
-  // start connection and send HTTP header
-  int httpCode = http.POST(command);
-  if (httpCode)
+  Serial.print("Connecting to ");
+  Serial.println(bridge_ip);
+
+  // Use WiFiClient class to create TCP connections
+  WiFiClient client;
+
+  if (!client.connect(bridge_ip, bridge_port))
   {
-      // HTTP header has been send and Server response header has been handled
-      Serial.printf("[HTTP] GET... code: %d\n", httpCode);
+    Serial.println("Connection failed");
+    return;
   }
-  else
-  {
-      Serial.print("[HTTP] GET... failed, no connection or no HTTP server\n");
-  }
+  Serial.println("Connected, writing command:" + command);
   
-  http.end();
+  // This will send the request to the server
+
+  client.println("PUT /api/" + hueUsername + "/groups/0/action");
+  client.println("Host: " + String(bridge_ip) + ":" + String(bridge_port));
+  client.println("User-Agent: ESP8266/1.0");
+  client.println("Connection: close");
+  client.println("Content-type: text/xml; charset=\"utf-8\"");
+  client.println("Content-Length: " + String(command.length()));
+  client.println();
+  client.println(command);
+
+
+  // Read all the lines of the reply from server and print them to Serial
+/*
+  while(client.available())
+  {
+    String line = client.readStringUntil('\r');
+    Serial.print(line);
+  }
+*/
+
+  Serial.println("done");
+  client.stop();
 }
 
 void turnOnLights()
 {
-  setHue("{\"on\":true, \"bri\":255}");
-  digitalWrite(BUILTIN_LED, HIGH);
+  digitalWrite(LIGHT_LED_PIN, LOW);
+  digitalWrite(WORKING_LED_PIN, LOW);
+  setHue(hue_on);
+  digitalWrite(WORKING_LED_PIN, HIGH);
 }
 
 void turnOffLights()
 {
-  setHue("{\"on\":false");
-  digitalWrite(BUILTIN_LED, LOW);
+  digitalWrite(LIGHT_LED_PIN, HIGH);
+  digitalWrite(WORKING_LED_PIN, LOW);
+  setHue(hue_off);
+  digitalWrite(WORKING_LED_PIN, HIGH);
 }
 
 void dimLights(float percentage)
 {
   int brightness = ceil(255*(percentage/100));
-  setHue("{\"bri\":" + String(percentage) + "}");
+  //setHue("{\"bri\":" + String(brightness) + "}");
 }
 
 
@@ -64,8 +91,10 @@ void setup() {
 
   //Set switch pin to input
   pinMode(switchPin, INPUT_PULLUP);
-  //Debug LED for confirmation
-  pinMode(BUILTIN_LED, OUTPUT);
+  // LED to mirror status of light 
+  pinMode(LIGHT_LED_PIN, OUTPUT);
+  // LED to indicate communications on network
+  pinMode(WORKING_LED_PIN, OUTPUT);
   
   // We start by connecting to a WiFi network
 
@@ -99,7 +128,8 @@ void loop() {
   currSwitchState = digitalRead(switchPin);
   if (currSwitchState != prevSwitchState)
   {
-    // LOW and HIGH are backwards due to the PULLUP resister
+    // LOW means switch is closed due to the PULLUP resister
+    prevSwitchState = currSwitchState;
     if (currSwitchState == LOW)
     {
       turnOnLights();
@@ -108,7 +138,6 @@ void loop() {
     {
       turnOffLights();
     }
-    prevSwitchState = currSwitchState;
   }
 
   //Read dimmer

@@ -3,6 +3,9 @@
 
 #include <WifiClient.h>
 
+#define READ_TIMEOUT 1000
+#define READ_WAIT_INTERVAL 50
+
 class HueControl {
     public:
         HueControl(const String &bridgeIP, int bridgePort, const String &hueUserName);

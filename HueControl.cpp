@@ -26,23 +26,35 @@ void HueControl::setHue(const String &command)
 {
     reconnectToBridgeIfNeeded();
 
-    Serial.println("Connected, writing command:" + command);
+    Serial.println("Connected, writing command:");
 
     // This will send the request to the server
 
-    m_client.println("PUT /api/" + m_hueUserName + "/groups/0/action");
-    m_client.println("Host: " + m_bridgeIP + ":" + String(m_bridgePort));
-    m_client.println("User-Agent: ESP8266/1.0");
-    m_client.println("Connection: keepalive");
-    m_client.println("Content-type: text/xml; charset=\"utf-8\"");
-    m_client.println("Content-Length: " + String(command.length()));
-    m_client.println();
-    m_client.println(command);
+    String request = "PUT /api/" + m_hueUserName + "/groups/0/action" + "\r\n" +
+    "Host: " + m_bridgeIP + ":" + String(m_bridgePort) + "\r\n" +
+    "User-Agent: ESP8266/1.0" + "\r\n" +
+    "Connection: keep-alive" + "\r\n" +
+    "Content-type: text/xml; charset=\"utf-8\"" + "\r\n" +
+    "Content-Length: " + String(command.length()) + "\r\n" +
+    "\r\n" +
+    command + "\r\n";
 
+    Serial.println("request: " + request);
+    m_client.write((const uint8_t *)request.c_str(), request.length());
 
     // Read all the lines of the reply from server and print them to Serial
+    // Wait up to READ_TIMEOUT ms
+
+    int time_waited = 0;
+    while (!m_client.available() && time_waited < READ_TIMEOUT)
+    {
+        Serial.println("No reply, have waited " + String(time_waited) + " ms");
+        time_waited += READ_WAIT_INTERVAL;
+        delay(READ_WAIT_INTERVAL);
+    }
     while(m_client.available())
     {
+      //TODO: Make the reading faster
         String line = m_client.readStringUntil('\r');
         Serial.print(line);
     }
@@ -68,5 +80,6 @@ void HueControl::connectToBridge()
         Serial.println("Connection failed");
         return;
     }
+    m_client.setNoDelay(true);
     Serial.println("Connected");
 }

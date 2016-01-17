@@ -2,6 +2,8 @@
 #include "private.h"
 #include "HueControl.h"
 
+#define DIMMER_DELAY 4
+
 const char* ssid     = private_ssid;
 const char* password = private_password;
 
@@ -12,6 +14,11 @@ const int bridge_port = 80;
 const int LIGHT_LED_PIN = D0;
 const int WORKING_LED_PIN = D4;
 const int switchPin = D5;
+const int dimmerPin = A0;
+
+int dimmerValue = 0;
+unsigned long lastDimmerRead = 0;
+unsigned long lastDimmerPrint = 0;
 int prevSwitchState = 0;
 int currSwitchState = 0;
 
@@ -33,10 +40,11 @@ void turnOffLights()
   digitalWrite(WORKING_LED_PIN, HIGH);
 }
 
-void dimLights(float percentage)
+void dimLights(int analogVal)
 {
-  int brightness = ceil(255*(percentage/100));
-  //setHue("{\"bri\":" + String(brightness) + "}");
+  digitalWrite(WORKING_LED_PIN, LOW);
+  hue->dimLights(ceil((float)analogVal/1024));
+  digitalWrite(WORKING_LED_PIN, HIGH);
 }
 
 void setup() {
@@ -49,6 +57,7 @@ void setup() {
   pinMode(LIGHT_LED_PIN, OUTPUT);
   // LED to indicate communications on network
   pinMode(WORKING_LED_PIN, OUTPUT);
+  pinMode(dimmerPin, INPUT);
   
   // We start by connecting to a WiFi network
 
@@ -71,21 +80,24 @@ void setup() {
   Serial.println(WiFi.localIP());
 
   hue = new HueControl(String(bridge_ip), bridge_port, hueUsername);
+
+  //to indicate first time through loop
+  prevSwitchState = -1;
 }
 
 void loop() {
   // Reset device if wifi is disconnected
   if (WiFi.status() == WL_DISCONNECTED)
   {
+    Serial.println("Wifi diconnected, reset board");
     ESP.reset();
   }
 
   //Read switch
   currSwitchState = digitalRead(switchPin);
-  if (currSwitchState != prevSwitchState)
+  if (currSwitchState != prevSwitchState && prevSwitchState != -1)
   {
-    // LOW means switch is closed due to the PULLUP resister
-    prevSwitchState = currSwitchState;
+    // LOW means switch is closed (light is on) due to the PULLUP resister
     if (currSwitchState == LOW)
     {
       turnOnLights();
@@ -95,7 +107,18 @@ void loop() {
       turnOffLights();
     }
   }
+  prevSwitchState = currSwitchState;
 
-  //Read dimmer
-  //TODO
+  //Read dimmer, but not too often as that crashes wifi
+  if (millis() - lastDimmerRead > DIMMER_DELAY)
+  {
+    dimmerValue = analogRead(dimmerPin);
+    if (millis() - lastDimmerPrint > 1000)
+    {
+      Serial.println(dimmerValue);
+      lastDimmerPrint = millis();
+    }
+    lastDimmerRead = millis();
+  }
+
 }

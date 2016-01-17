@@ -3,8 +3,8 @@
 
 #include <WifiClient.h>
 
+#define READ_RESPONSE 1
 #define READ_TIMEOUT 1000
-#define READ_WAIT_INTERVAL 50
 
 class HueControl {
     public:
@@ -13,6 +13,7 @@ class HueControl {
         
         void turnOnLights();
         void turnOffLights();
+        void dimLights(int percentage);
 
     private:
         void setHue(const String &command);

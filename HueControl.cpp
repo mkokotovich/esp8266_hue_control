@@ -12,20 +12,26 @@ HueControl::~HueControl()
     m_client.stop();
 }
 
-void HueControl::turnOnLights()
+void HueControl::turnOnLights(int percentage)
 {
-    setHue(hue_on);
+    int brightness = getBrightnessFromPercentage(percentage);
+    setHue("{\"on\":true, \"bri\":" + String(brightness) + "}");
 }
 
 void HueControl::turnOffLights()
 {
-    setHue(hue_off);
+    setHue("{\"on\":false}");
 }
 
 void HueControl::dimLights(int percentage)
 {
-    int brightness = ceil(255*((float)percentage/100));
+    int brightness = getBrightnessFromPercentage(percentage);
     setHue("{\"bri\":" + String(brightness) + "}");
+}
+
+int HueControl::getBrightnessFromPercentage(int percentage)
+{
+    return ceil(255*((float)percentage/100));
 }
 
 void HueControl::setHue(const String &command)

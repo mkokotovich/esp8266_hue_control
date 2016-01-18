@@ -11,13 +11,13 @@ class HueControl {
         HueControl(const String &bridgeIP, int bridgePort, const String &hueUserName);
         ~HueControl();
         
-        void turnOnLights();
+        void turnOnLights(int dimmerPercentage=100);
         void turnOffLights();
         void dimLights(int percentage);
 
     private:
+        int getBrightnessFromPercentage(int percentage);
         void setHue(const String &command);
-        void reconnectToBridgeIfNeeded();
         void connectToBridge();
 
         const String m_bridgeIP;
@@ -25,10 +25,6 @@ class HueControl {
         const String m_hueUserName;
 
         WiFiClient m_client;
-
-        const String hue_on="{\"on\":true, \"bri\":255}";
-        const String hue_off="{\"on\":false}";
-
 };
 
 #endif

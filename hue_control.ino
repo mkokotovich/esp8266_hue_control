@@ -1,6 +1,7 @@
 #include <ESP8266WiFi.h>
 #include "private.h"
 #include "HueControl.h"
+#include "AnalogReader.h"
 
 #define DIMMER_DELAY 4
 
@@ -23,12 +24,13 @@ int prevSwitchState = 0;
 int currSwitchState = 0;
 
 HueControl *hue = NULL;
+AnalogReader *dimmer = NULL;
 
-void turnOnLights()
+void turnOnLights(int dimmerValue)
 {
   digitalWrite(LIGHT_LED_PIN, LOW);
   digitalWrite(WORKING_LED_PIN, LOW);
-  hue->turnOnLights();
+  hue->turnOnLights(ceil((float)dimmerValue/1024));
   digitalWrite(WORKING_LED_PIN, HIGH);
 }
 
@@ -80,6 +82,7 @@ void setup() {
   Serial.println(WiFi.localIP());
 
   hue = new HueControl(String(bridge_ip), bridge_port, hueUsername);
+  dimmer = new AnalogReader(0, 1024, 20, 985, 50, 2);
 
   //to indicate first time through loop
   prevSwitchState = -1;
@@ -93,6 +96,24 @@ void loop() {
     ESP.reset();
   }
 
+  //Read dimmer, but not too often as that crashes wifi
+  if (millis() - lastDimmerRead > DIMMER_DELAY)
+  {
+    dimmerValue = dimmer->addReading(analogRead(dimmerPin));
+    if (millis() - lastDimmerPrint > 1000)
+    {
+      Serial.println(dimmerValue);
+      lastDimmerPrint = millis();
+    }
+    lastDimmerRead = millis();
+
+    // If light is on, update brightness
+    if (prevSwitchState == LOW)
+    {
+        dimLights(dimmerValue);
+    }
+  }
+
   //Read switch
   currSwitchState = digitalRead(switchPin);
   if (currSwitchState != prevSwitchState && prevSwitchState != -1)
@@ -100,7 +121,7 @@ void loop() {
     // LOW means switch is closed (light is on) due to the PULLUP resister
     if (currSwitchState == LOW)
     {
-      turnOnLights();
+      turnOnLights(dimmerValue);
     }
     else
     {
@@ -108,17 +129,5 @@ void loop() {
     }
   }
   prevSwitchState = currSwitchState;
-
-  //Read dimmer, but not too often as that crashes wifi
-  if (millis() - lastDimmerRead > DIMMER_DELAY)
-  {
-    dimmerValue = analogRead(dimmerPin);
-    if (millis() - lastDimmerPrint > 1000)
-    {
-      Serial.println(dimmerValue);
-      lastDimmerPrint = millis();
-    }
-    lastDimmerRead = millis();
-  }
 
 }

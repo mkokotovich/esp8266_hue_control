@@ -21,8 +21,8 @@ class AnalogReader {
                      int consecutiveReadingsRequired);
         ~AnalogReader() {};
 
-        /* Adds reading, returns current value */
-        int addReading(int reading);
+        /* Adds reading, returns whether or not the value changed */
+        bool addReading(int reading);
 
         int getCurrentValue();
         

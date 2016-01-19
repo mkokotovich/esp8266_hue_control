@@ -17,7 +17,6 @@ const int WORKING_LED_PIN = D4;
 const int switchPin = D5;
 const int dimmerPin = A0;
 
-int dimmerValue = 0;
 unsigned long lastDimmerRead = 0;
 unsigned long lastDimmerPrint = 0;
 int prevSwitchState = 0;
@@ -30,7 +29,7 @@ void turnOnLights(int dimmerValue)
 {
   digitalWrite(LIGHT_LED_PIN, LOW);
   digitalWrite(WORKING_LED_PIN, LOW);
-  hue->turnOnLights(ceil((float)dimmerValue/1024));
+  hue->turnOnLights((float)dimmerValue/1024);
   digitalWrite(WORKING_LED_PIN, HIGH);
 }
 
@@ -45,7 +44,7 @@ void turnOffLights()
 void dimLights(int analogVal)
 {
   digitalWrite(WORKING_LED_PIN, LOW);
-  hue->dimLights(ceil((float)analogVal/1024));
+  hue->dimLights((float)analogVal/1024);
   digitalWrite(WORKING_LED_PIN, HIGH);
 }
 
@@ -99,19 +98,13 @@ void loop() {
   //Read dimmer, but not too often as that crashes wifi
   if (millis() - lastDimmerRead > DIMMER_DELAY)
   {
-    dimmerValue = dimmer->addReading(analogRead(dimmerPin));
-    if (millis() - lastDimmerPrint > 1000)
-    {
-      Serial.println(dimmerValue);
-      lastDimmerPrint = millis();
-    }
-    lastDimmerRead = millis();
-
-    // If light is on, update brightness
-    if (prevSwitchState == LOW)
-    {
-        dimLights(dimmerValue);
-    }
+      // If light is on and dimmer has changed, update dimmer
+      if (dimmer->addReading(analogRead(dimmerPin)) && prevSwitchState == LOW)
+      {
+          dimLights(dimmer->getCurrentValue());
+          Serial.println(dimmer->getCurrentValue());
+      }
+      lastDimmerRead = millis();
   }
 
   //Read switch
@@ -121,7 +114,7 @@ void loop() {
     // LOW means switch is closed (light is on) due to the PULLUP resister
     if (currSwitchState == LOW)
     {
-      turnOnLights(dimmerValue);
+      turnOnLights(dimmer->getCurrentValue());
     }
     else
     {

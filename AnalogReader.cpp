@@ -18,17 +18,19 @@ AnalogReader::AnalogReader(int minValue,
 {
 }
 
-int AnalogReader::addReading(int reading)
+bool AnalogReader::addReading(int reading)
 {
+    bool valueChanged = false;
     /* Special case for adding the first reading */
     if (m_currentValue == UNINITIALIZED && m_potentialNewValue == UNINITIALIZED)
     {
         m_currentValue = m_potentialNewValue = reading;
+        return false;
     }
     if (reading <= m_currentValue + m_granularity && reading >= m_currentValue - m_granularity)
     {
         /* Treat reading the same as the current value */
-        return normalizeValue(m_currentValue);
+        return false;
     }
 
     if (reading <= m_potentialNewValue + m_granularity && reading >= m_potentialNewValue - m_granularity)
@@ -38,7 +40,7 @@ int AnalogReader::addReading(int reading)
     }
     else
     {
-        /* A reading from a new value, reset */
+        /* A reading from a new value, reset but dont change currenrValue */
         m_potentialNewValue = reading;
         m_consecutiveReadingsRemaining = m_consecutiveReadingsRequired;
         m_consecutiveReadingsRemaining--;
@@ -49,9 +51,10 @@ int AnalogReader::addReading(int reading)
         /* Met criteria, promote the potential value to currentValue */
         m_currentValue = m_potentialNewValue;
         m_consecutiveReadingsRemaining = m_consecutiveReadingsRequired;
+        valueChanged = true;
     }
 
-    return normalizeValue(m_currentValue);
+    return valueChanged;
 }
 
 int AnalogReader::getCurrentValue()

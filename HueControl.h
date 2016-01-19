@@ -11,12 +11,12 @@ class HueControl {
         HueControl(const String &bridgeIP, int bridgePort, const String &hueUserName);
         ~HueControl();
         
-        void turnOnLights(int dimmerPercentage=100);
+        void turnOnLights(float dimmerPercentage=1.0);
         void turnOffLights();
-        void dimLights(int percentage);
+        void dimLights(float percentage);
 
     private:
-        int getBrightnessFromPercentage(int percentage);
+        int getBrightnessFromPercentage(float percentage);
         void setHue(const String &command);
         void connectToBridge();
 

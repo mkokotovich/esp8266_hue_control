@@ -2,6 +2,8 @@
 #include "private.h"
 #include "HueControl.h"
 #include "AnalogReader.h"
+#include "RestUI.h"
+#include "OTAUpdates.h"
 
 #define DIMMER_DELAY 4
 
@@ -24,6 +26,8 @@ int currSwitchState = 0;
 
 HueControl *hue = NULL;
 AnalogReader *dimmer = NULL;
+bool switchEnabled = true;
+bool dimmerEnabled = true;
 
 void turnOnLights(int dimmerValue)
 {
@@ -48,6 +52,24 @@ void dimLights(int analogVal)
   digitalWrite(WORKING_LED_PIN, HIGH);
 }
 
+void startWifi(void)
+{
+  // Connect to WiFi
+  WiFi.disconnect(); //no-op if not connected
+  WiFi.begin(ssid, password);
+  Serial.println("");
+  Serial.println("");
+  Serial.println("Connecting to " + String(ssid));
+  while (WiFi.status() != WL_CONNECTED) {
+    delay(500);
+    Serial.print(".");
+  }
+  Serial.println("");
+  Serial.println("WiFi connected");
+  Serial.print("IP address: ");
+  Serial.println(WiFi.localIP());
+}
+
 void setup() {
   Serial.begin(115200);
   delay(10);
@@ -59,26 +81,12 @@ void setup() {
   // LED to indicate communications on network
   pinMode(WORKING_LED_PIN, OUTPUT);
   pinMode(dimmerPin, INPUT);
-  
-  // We start by connecting to a WiFi network
 
-  Serial.println();
-  Serial.println();
-  Serial.print("Connecting to ");
-  Serial.println(ssid);
+  setupRestUI();
   
-  WiFi.begin(ssid, password);
-  
-  while (WiFi.status() != WL_CONNECTED)
-  {
-    delay(500);
-    Serial.print(".");
-  }
-
-  Serial.println("");
-  Serial.println("WiFi connected");  
-  Serial.println("IP address: ");
-  Serial.println(WiFi.localIP());
+  startWifi();
+  startRestUIServer();
+  startUpdateServer();
 
   hue = new HueControl(String(bridge_ip), bridge_port, hueUsername);
   dimmer = new AnalogReader(0, 1024, 20, 985, 50, 2);
@@ -91,12 +99,14 @@ void loop() {
   // Reset device if wifi is disconnected
   if (WiFi.status() == WL_DISCONNECTED)
   {
-    Serial.println("Wifi diconnected, reset board");
-    ESP.reset();
+    Serial.println("Wifi diconnected, reset connection");
+    startWifi();
+    startRestUIServer();
+    startUpdateServer();
   }
 
   //Read dimmer, but not too often as that crashes wifi
-  if (millis() - lastDimmerRead > DIMMER_DELAY)
+  if (dimmerEnabled && millis() - lastDimmerRead > DIMMER_DELAY)
   {
       // If light is on and dimmer has changed, update dimmer
       if (dimmer->addReading(analogRead(dimmerPin)) && prevSwitchState == LOW)
@@ -108,19 +118,24 @@ void loop() {
   }
 
   //Read switch
-  currSwitchState = digitalRead(switchPin);
-  if (currSwitchState != prevSwitchState && prevSwitchState != -1)
+  if (switchEnabled)
   {
-    // LOW means switch is closed (light is on) due to the PULLUP resister
-    if (currSwitchState == LOW)
+    currSwitchState = digitalRead(switchPin);
+    if (currSwitchState != prevSwitchState && prevSwitchState != -1)
     {
-      turnOnLights(dimmer->getCurrentValue());
+      // LOW means switch is closed (light is on) due to the PULLUP resister
+      if (currSwitchState == LOW)
+      {
+        turnOnLights(dimmer->getCurrentValue());
+      }
+      else
+      {
+        turnOffLights();
+      }
     }
-    else
-    {
-      turnOffLights();
-    }
+    prevSwitchState = currSwitchState;
   }
-  prevSwitchState = currSwitchState;
 
+  handleOTAUpdate();
+  handleRestUI();
 }
